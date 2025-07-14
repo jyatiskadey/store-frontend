@@ -3,10 +3,10 @@ import API from "../api";
 import {
   ArrowBigDown,
   ArrowBigUp,
-  Box,
   PackageX,
   LayoutGrid,
 } from "lucide-react";
+import Chart from "react-apexcharts";
 
 const Dashboard = () => {
   const tableRef = useRef();
@@ -46,17 +46,56 @@ const Dashboard = () => {
         ordering: true,
         destroy: true,
       });
-    }, 100); // delay ensures table rows are rendered
+    }, 100);
 
     return () => clearTimeout(timeout);
   }, [stats.items]);
 
+  // Chart Config
+  const chartOptions = {
+    chart: { type: "bar", toolbar: { show: false } },
+    colors: ["#3B82F6", "#EF4444", "#10B981", "#8B5CF6"],
+    plotOptions: {
+      bar: {
+        borderRadius: 6,
+        columnWidth: "50%",
+      },
+    },
+    dataLabels: {
+      enabled: true,
+      style: {
+        fontSize: "12px",
+      },
+    },
+    xaxis: {
+      categories: ["Total Items", "Out of Stock", "Item In", "Item out"],
+    },
+    legend: { show: false },
+  };
+
+  const chartSeries = [
+    {
+      name: "Count",
+      data: [
+        stats.totalItems || 0,
+        stats.outOfStock || 0,
+        stats.totalIn || 0,
+        stats.totalOut || 0,
+      ],
+    },
+  ];
 
   return (
     <div className="p-6">
       <h2 className="text-3xl font-semibold mb-8 text-gray-800">
         📊 Dashboard Overview
       </h2>
+
+      {/* Chart Section */}
+      <div className="bg-white p-4 rounded-xl shadow mb-10">
+        <h3 className="text-lg font-semibold text-gray-700 mb-4">📈 Stock Stats Overview</h3>
+        <Chart options={chartOptions} series={chartSeries} type="bar" height={300} />
+      </div>
 
       {/* Top stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 mb-10">
@@ -112,28 +151,37 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {stats.items.map((item, idx) => (
-                <tr
-                  key={item.name + idx}
-                  className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                >
-                  <td className="py-2 px-4">{item.name}</td>
-                  <td className="py-2 px-4">{item.category}</td>
-                  <td className="py-2 px-4 font-semibold">{item.totalIn}</td>
-                  <td className="py-2 px-4 text-red-600 font-semibold">{item.totalOut}</td>
-                  <td className="py-2 px-4 font-bold text-green-600 ">{item.quantity}</td>
-                  <td className="py-2 px-4">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${item.status === "Out"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-green-100 text-green-700"
+              {Array.isArray(stats.items) && stats.items.length > 0 ? (
+                stats.items.map((item, idx) => (
+                  <tr
+                    key={item.name + idx}
+                    className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                  >
+                    <td className="py-2 px-4">{item.name}</td>
+                    <td className="py-2 px-4">{item.category}</td>
+                    <td className="py-2 px-4 font-semibold">{item.totalIn}{item.unit}</td>
+                    <td className="py-2 px-4 text-red-600 font-semibold">{item.totalOut}{item.unit}</td>
+                    <td className="py-2 px-4 font-bold text-green-600">{item.quantity}{item.unit}</td>
+                    <td className="py-2 px-4">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          item.status === "Out"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-green-100 text-green-700"
                         }`}
-                    >
-                      {item.status}
-                    </span>
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-gray-500">
+                    No data available
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

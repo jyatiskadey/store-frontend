@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import API from "../api";
 import Loader from "../Components/Loader";
+import { pdf } from "@react-pdf/renderer";
+import InvoiceDocument from "../Components/InvoiceDocument";
+import { toast } from "react-toastify";
 
 const GoodsList = () => {
   const [goods, setGoods] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [quantities, setQuantities] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [qtyToRemove, setQtyToRemove] = useState("");
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false); // disable confirm btn while patching
+  const [submitting, setSubmitting] = useState(false);
+  const [buyer, setBuyer] = useState({ name: "", phone: "", address: "" });
 
   const fetchGoods = async () => {
     setLoading(true);
@@ -26,143 +30,214 @@ const GoodsList = () => {
     fetchGoods();
   }, []);
 
-  const openConfirmModal = (item) => {
-    setSelectedItem(item);
-    setQtyToRemove("1");
+  const toggleSelectItem = (item) => {
+    const exists = selectedItems.find((i) => i._id === item._id);
+    if (exists) {
+      setSelectedItems(selectedItems.filter((i) => i._id !== item._id));
+      const updatedQty = { ...quantities };
+      delete updatedQty[item._id];
+      setQuantities(updatedQty);
+    } else {
+      setSelectedItems([...selectedItems, item]);
+      setQuantities({ ...quantities, [item._id]: 1 });
+    }
+  };
+
+  const openConfirmModal = () => {
+    if (selectedItems.length === 0) {
+      alert("Please select at least one item to stock out.");
+      return;
+    }
     setShowConfirm(true);
   };
 
+  const closeModal = () => {
+    setShowConfirm(false);
+    setSelectedItems([]);
+    setQuantities({});
+    setBuyer({ name: "", phone: "", address: "" });
+  };
+
+  const handleQuantityChange = (id, value) => {
+    setQuantities({ ...quantities, [id]: value });
+  };
+
+  const calculateTotal = () => {
+    return selectedItems.reduce((total, item) => {
+      const qty = Number(quantities[item._id] || 0);
+      return total + qty * (item.unitPrice || 0);
+    }, 0);
+  };
+
   const handleConfirmStockOut = async () => {
-    const qty = Number(qtyToRemove);
-
-    if (!qty || qty <= 0 || qty > selectedItem.quantity) {
-      alert("❌ Invalid quantity");
-      return;
-    }
-
     setSubmitting(true);
-
     try {
-      await API.patch(`/goods/stockout/${selectedItem._id}`, { quantity: qty });
-      alert("✅ Stock updated successfully");
-      setShowConfirm(false);
-      setSelectedItem(null);
-      setQtyToRemove("");
-      fetchGoods(); // refresh list
+      const items = selectedItems.map((item) => ({
+        _id: item._id,
+        quantity: Number(quantities[item._id] || 0),
+      }));
+  
+      await API.post("/goods/stockout-multiple", { items });
+  
+      const blob = await pdf(
+        <InvoiceDocument
+          buyer={buyer}
+          items={selectedItems.map((item) => ({
+            name: item.name,
+            qty: Number(quantities[item._id]), // ✅ Key matches PDF component
+            rate: item.unitPrice || 0,
+          }))}
+          gst={18}
+        />
+      ).toBlob();
+  
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Invoice_${Date.now()}.pdf`;
+      link.click();
+  
+      toast.success("✅ Stock out completed & Invoice downloaded!");
+      fetchGoods();
+      closeModal();
     } catch (err) {
-      alert(`❌ Error: ${err.response?.data?.error || "Failed to update"}`);
+      console.error("Invoice generation failed:", err);
+      toast.error("❌ Failed to stock out and generate invoice");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const closeModal = () => {
-    setShowConfirm(false);
-    setSelectedItem(null);
-    setQtyToRemove("");
-  };
-
   return (
-    <div className="p-6 min-h-screen bg-gray-50 relative">
+    <div className="p-6 min-h-screen bg-gray-50">
       <h2 className="text-2xl font-semibold text-gray-800 mb-6">📋 Items List</h2>
 
       {loading ? (
         <Loader />
-      ) : goods.length === 0 ? (
-        <div className="text-center text-gray-500 py-10">
-          <p className="text-lg">No items found. Please add some item.</p>
-        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200 rounded-xl shadow-md">
-            <thead className="bg-gray-100 text-gray-700">
-              <tr>
-                <th className="py-3 px-4 text-left">Name</th>
-                <th className="py-3 px-4 text-left">Category</th>
-                <th className="py-3 px-4 text-left">Quantity</th>
-                <th className="py-3 px-4 text-left">Status</th>
-                <th className="py-3 px-4 text-left">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {goods.map((item, idx) => (
-                <tr
-                  key={item._id}
-                  className={`border-t ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
-                >
-                  <td className="py-3 px-4">{item.name}</td>
-                  <td className="py-3 px-4">{item.category}</td>
-                  <td className="py-3 px-4">{item.quantity}</td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`px-2 py-1 rounded text-sm font-medium ${
-                        item.status === "In"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    {item.quantity > 0 ? (
-                      <button
-                        onClick={() => openConfirmModal(item)}
-                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm transition"
-                      >
-                        Stock Out
-                      </button>
-                    ) : (
-                      <span className="text-gray-400 italic text-sm">No stock</span>
-                    )}
-                  </td>
+        <>
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-200 rounded-xl shadow-md">
+              <thead className="bg-gray-100 text-gray-700">
+                <tr>
+                  <th className="py-3 px-4">Select</th>
+                  <th className="py-3 px-4 text-left">Name</th>
+                  <th className="py-3 px-4 text-left">Category</th>
+                  <th className="py-3 px-4 text-left">Quantity</th>
+                  <th className="py-3 px-4 text-left">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {goods.map((item, idx) => (
+                  <tr key={item._id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="py-3 px-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.some((i) => i._id === item._id)}
+                        onChange={() => toggleSelectItem(item)}
+                      />
+                    </td>
+                    <td className="py-3 px-4">{item.name}</td>
+                    <td className="py-3 px-4">{item.category}</td>
+                    <td className="py-3 px-4">
+                      {item.quantity} {item.unit}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`px-2 py-1 rounded text-sm font-medium ${item.status === "In"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                          }`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <button
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            onClick={openConfirmModal}
+          >
+            🧾 Stock Out & Generate Invoice
+          </button>
+        </>
       )}
 
-      {/* Confirmation Modal */}
-      {showConfirm && selectedItem && (
+      {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white w-full max-w-md p-6 rounded-lg shadow-lg relative">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Confirm Stock Out</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Are you sure you want to stock out{" "}
-              <strong>{selectedItem.name}</strong>?
-            </p>
+          <div className="bg-white w-full max-w-xl p-6 rounded-lg shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Stock Out & Generate Bill
+            </h3>
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Quantity to remove (Max: {selectedItem.quantity})
-            </label>
-            <input
-              type="number"
-              value={qtyToRemove}
-              min="1"
-              max={selectedItem.quantity}
-              onChange={(e) => setQtyToRemove(e.target.value)}
-              className="w-full mb-4 px-4 py-2 border rounded-lg border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Buyer Name"
+                className="w-full border rounded px-3 py-2"
+                value={buyer.name}
+                onChange={(e) => setBuyer({ ...buyer, name: e.target.value })}
+                required
+              />
+              <input
+                type="tel"
+                placeholder="Phone"
+                maxLength={10}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                className="w-full border rounded px-3 py-2"
+                value={buyer.phone}
+                onChange={(e) =>
+                  setBuyer({ ...buyer, phone: e.target.value.replace(/\D/g, "") })
+                }
+                required
+              />
 
-            <div className="flex justify-end gap-3">
+              <textarea
+                placeholder="Address"
+                className="w-full border rounded px-3 py-2"
+                value={buyer.address}
+                onChange={(e) => setBuyer({ ...buyer, address: e.target.value })}
+                required
+              />
+
+              {selectedItems.map((item) => (
+                <div key={item._id}>
+                  <div className="font-medium">
+                    {item.name} ({item.unit}) - ₹{item.unitPrice}/unit
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max={item.quantity}
+                    value={quantities[item._id] || ""}
+                    onChange={(e) => handleQuantityChange(item._id, e.target.value)}
+                    className="w-full border rounded px-3 py-1 mt-1"
+                  />
+                </div>
+              ))}
+
+              <div className="mt-2 text-gray-700">
+                Total: ₹{calculateTotal().toFixed(2)}
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={closeModal}
-                disabled={submitting}
                 className="px-4 py-2 rounded bg-gray-300 text-gray-700 hover:bg-gray-400"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmStockOut}
-                disabled={submitting}
-                className={`px-4 py-2 rounded text-white ${
-                  submitting
-                    ? "bg-red-300 cursor-not-allowed"
-                    : "bg-red-600 hover:bg-red-700"
-                }`}
+                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
               >
-                {submitting ? "Processing..." : "Confirm"}
+                {submitting ? "Processing..." : "✅ Confirm & Download"}
               </button>
             </div>
           </div>
