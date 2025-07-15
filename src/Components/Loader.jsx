@@ -1,28 +1,39 @@
-import React from "react";
 import ContentLoader from "react-content-loader";
 
-const Loader = (props) => (
-  <div className="flex justify-center items-center min-h-[300px]">
+const Loader = () => (
+  <div className="w-full min-h-screen flex items-center justify-center bg-white">
     <ContentLoader
-      speed={2}
-      width={500}
-      height={300}
-      viewBox="0 0 500 300"
+      speed={1.5}
+      width="100%"
+      height={400}
+      viewBox="0 0 1000 400"
       backgroundColor="#f3f3f3"
-      foregroundColor="#ecebeb"
-      {...props}
+      foregroundColor="#e0e0e0"
+      className="w-full max-w-6xl"
     >
-      {/* X-axis line */}
-      <rect x="0" y="270" rx="0" ry="0" width="500" height="2" />
+      {/* Title */}
+      <rect x="0" y="10" rx="5" ry="5" width="300" height="24" />
 
-      {/* Y-axis bars */}
-      <rect x="40" y="100" rx="4" ry="4" width="30" height="170" />
-      <rect x="100" y="140" rx="4" ry="4" width="30" height="130" />
-      <rect x="160" y="80" rx="4" ry="4" width="30" height="190" />
-      <rect x="220" y="120" rx="4" ry="4" width="30" height="150" />
-      <rect x="280" y="160" rx="4" ry="4" width="30" height="110" />
-      <rect x="340" y="90" rx="4" ry="4" width="30" height="180" />
-      <rect x="400" y="130" rx="4" ry="4" width="30" height="140" />
+      {/* Filter or button row */}
+      <rect x="0" y="50" rx="5" ry="5" width="150" height="20" />
+      <rect x="160" y="50" rx="5" ry="5" width="100" height="20" />
+      <rect x="270" y="50" rx="5" ry="5" width="120" height="20" />
+
+      {/* Table headers */}
+      <rect x="0" y="90" rx="4" ry="4" width="1000" height="20" />
+
+      {/* Table rows */}
+      {[...Array(6)].map((_, i) => (
+        <rect
+          key={i}
+          x="0"
+          y={120 + i * 40}
+          rx="4"
+          ry="4"
+          width="1000"
+          height="20"
+        />
+      ))}
     </ContentLoader>
   </div>
 );

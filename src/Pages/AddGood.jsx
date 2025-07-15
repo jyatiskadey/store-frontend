@@ -175,6 +175,7 @@ const AddGood = () => {
             <select
               id="unit"
               name="unit"
+              
               value={form.unit}
               onChange={handleChange}
               required

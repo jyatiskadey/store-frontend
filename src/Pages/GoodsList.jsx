@@ -71,32 +71,57 @@ const GoodsList = () => {
 
   const handleConfirmStockOut = async () => {
     setSubmitting(true);
+  
+    // ✅ Validate buyer fields
+    if (!buyer.name || !buyer.phone || !buyer.address) {
+      toast.error("❌ Buyer details are incomplete!");
+      setSubmitting(false);
+      return;
+    }
+  
+    // ✅ Validate quantities for selected items
+    const hasInvalidQty = selectedItems.some(
+      (item) =>
+        !quantities[item._id] ||
+        isNaN(Number(quantities[item._id])) ||
+        Number(quantities[item._id]) <= 0
+    );
+  
+    if (hasInvalidQty) {
+      toast.error("❌ Please enter valid quantities for all selected items.");
+      setSubmitting(false);
+      return;
+    }
+  
     try {
       const items = selectedItems.map((item) => ({
         _id: item._id,
-        quantity: Number(quantities[item._id] || 0),
+        quantity: Number(quantities[item._id]),
       }));
   
+      // ✅ Send stock-out request to backend
       await API.post("/goods/stockout-multiple", { items });
   
+      // ✅ Prepare invoice data for PDF
+      const invoiceItems = selectedItems.map((item) => ({
+        name: item.name,
+        qty: Number(quantities[item._id]),
+        rate: item.unitPrice || 0,
+      }));
+  
+      // ✅ Generate PDF invoice using react-pdf
       const blob = await pdf(
-        <InvoiceDocument
-          buyer={buyer}
-          items={selectedItems.map((item) => ({
-            name: item.name,
-            qty: Number(quantities[item._id]), // ✅ Key matches PDF component
-            rate: item.unitPrice || 0,
-          }))}
-          gst={18}
-        />
+        <InvoiceDocument buyer={buyer} items={invoiceItems} gst={18} />
       ).toBlob();
   
+      // ✅ Create download link
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = `Invoice_${Date.now()}.pdf`;
       link.click();
   
+      // ✅ Success toast and cleanup
       toast.success("✅ Stock out completed & Invoice downloaded!");
       fetchGoods();
       closeModal();
@@ -107,6 +132,7 @@ const GoodsList = () => {
       setSubmitting(false);
     }
   };
+  
 
   return (
     <div className="p-6 min-h-screen bg-gray-50">
@@ -129,7 +155,7 @@ const GoodsList = () => {
               </thead>
               <tbody>
                 {goods.map((item, idx) => (
-                  <tr key={item._id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <tr key={item._id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"} onClick={() => toggleSelectItem(item)}>
                     <td className="py-3 px-4">
                       <input
                         type="checkbox"
@@ -145,8 +171,8 @@ const GoodsList = () => {
                     <td className="py-3 px-4">
                       <span
                         className={`px-2 py-1 rounded text-sm font-medium ${item.status === "In"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
                           }`}
                       >
                         {item.status}

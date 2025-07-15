@@ -7,9 +7,14 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import Chart from "react-apexcharts";
+import ContentLoader from "react-content-loader";
+import Loader from "../Components/Loader";
+
 
 const Dashboard = () => {
   const tableRef = useRef();
+  const [loading, setLoading] = useState(true);
+
   const [stats, setStats] = useState({
     totalItems: 0,
     outOfStock: 0,
@@ -23,8 +28,11 @@ const Dashboard = () => {
       try {
         const res = await API.get("/stats/dashboard");
         setStats(res.data);
+        setLoading(true)
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);
+      }finally{
+        setLoading(false);
       }
     };
     fetchStats();
@@ -86,6 +94,12 @@ const Dashboard = () => {
   ];
 
   return (
+    <> 
+    {
+      loading ? (
+        <Loader/>
+    ):
+    (
     <div className="p-6">
       <h2 className="text-3xl font-semibold mb-8 text-gray-800">
         📊 Dashboard Overview
@@ -146,7 +160,7 @@ const Dashboard = () => {
                 <th className="py-2 px-4">Category</th>
                 <th className="py-2 px-4">In Qty</th>
                 <th className="py-2 px-4">Out Qty</th>
-                <th className="py-2 px-4">Current</th>
+                <th className="py-2 px-4">Current Qty</th>
                 <th className="py-2 px-4">Status</th>
               </tr>
             </thead>
@@ -187,6 +201,8 @@ const Dashboard = () => {
         </div>
       </div>
     </div>
+    )}
+    </>
   );
 };
 
